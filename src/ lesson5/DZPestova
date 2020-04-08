@@ -1,0 +1,201 @@
+package l5;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.swing.JFrame;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTable;
+import javax.swing.JTree;
+import javax.swing.SwingUtilities;
+import javax.swing.event.TreeSelectionEvent;
+import javax.swing.event.TreeSelectionListener;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
+
+public class DZ implements Runnable{
+	//Пестова А.А. Я пыталась, но вышло не совсем что надо.И я не пойму где ошиблась.Буду благодарна за подсказку
+	private DefaultMutableTreeNode root;
+	 
+    private DefaultTreeModel treeModel;
+ 
+    private JTree tree;
+    private JSplitPane splitPane;
+ 
+    @Override
+    public void run() {
+        JFrame frame = new JFrame();
+ 
+        File fileRoot = new File("C:/");
+        root = new DefaultMutableTreeNode(new FileNode(fileRoot));
+        treeModel = new DefaultTreeModel(root);
+        tree = new JTree(treeModel);
+        tree.setShowsRootHandles(true);
+        JScrollPane scrollPane = new JScrollPane(tree);
+        frame.add(scrollPane);
+        frame.setLocationByPlatform(true);
+        frame.setSize(640, 480);
+        splitPane = new JSplitPane();
+        splitPane.setDividerLocation(300);
+        frame.add(splitPane);
+        createTable(fileRoot,splitPane);
+        frame.setVisible(true);
+        CreateChildNodes ccn = 
+                new CreateChildNodes(fileRoot, root);
+        new Thread(ccn).start();
+        frame.setSize(1024,500);
+        splitPane.setLeftComponent(scrollPane);
+        tree.addTreeSelectionListener(new TreeSelectionListener() {
+            @Override
+            public void valueChanged(TreeSelectionEvent treeSelectionEvent) {
+
+                File f = (File) (((DefaultMutableTreeNode)treeSelectionEvent.getNewLeadSelectionPath().getLastPathComponent()).getUserObject());
+                createTable(f,splitPane);
+            }
+        });
+       
+    }
+    
+ 
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(new DZ());
+    }
+ 
+    public class CreateChildNodes implements Runnable {
+ 
+        private DefaultMutableTreeNode root;
+ 
+        private File fileRoot;
+ 
+        public CreateChildNodes(File fileRoot, 
+                DefaultMutableTreeNode root) {
+            this.fileRoot = fileRoot;
+            this.root = root;
+        }
+ 
+        @Override
+        public void run() {
+            createChildren(fileRoot, root);
+            
+        }
+ 
+        private void createChildren(File fileRoot, 
+                DefaultMutableTreeNode node) {
+            File[] files = fileRoot.listFiles();
+            
+            if (files == null) return;
+            for (File file : files) {
+                DefaultMutableTreeNode childNode = 
+                        new DefaultMutableTreeNode(new FileNode(file));
+                node.add(childNode);
+                if (file.isDirectory()) {
+                    createChildren(file, childNode);  
+                }
+            }
+        }
+       
+    }
+    
+ 
+    public class FileNode {
+ 
+        private File file;
+ 
+        public FileNode(File file) {
+            this.file = file;
+        }
+ 
+        @Override
+        public String toString() {
+            String name = file.getName();
+                return file.getAbsolutePath();
+          
+        }
+        
+    }
+     public  void createTable(File f, JSplitPane splitPane)
+    {
+        MyTableModel myModel = new MyTableModel(f);
+        JTable table = new JTable(myModel);
+
+        JScrollPane scrollPaneRight = new JScrollPane(table);
+
+        splitPane.setRightComponent(scrollPaneRight);
+
+    }
+    class MyTableModel extends DefaultTableModel {
+    	File data;
+
+        MyTableModel (File file)
+        {
+            data = file;
+        }
+
+        @Override
+        public void setValueAt(Object arg0, int rowNum, int colNum) {
+        	 fireTableRowsUpdated(rowNum,rowNum);
+        }
+        @Override
+        public Object getValueAt(int rowNum, int colNum) {
+        	try {
+                if (data.isFile())
+                {
+                    BasicFileAttributes  attr = Files.readAttributes(data.toPath(), BasicFileAttributes.class);
+                    switch (colNum) {
+                        case 0 : return data.getName();
+                        case 1 : return attr.lastModifiedTime() ;
+                        case 2 : return attr.size();
+                    }
+                    return null;
+                }
+                File[] arrFile= data.listFiles();
+                BasicFileAttributes  attr = Files.readAttributes(arrFile[rowNum].toPath(), BasicFileAttributes.class);
+                switch (colNum) {
+                    case 0 : return arrFile[rowNum].getName();
+                    case 1 : return attr.lastModifiedTime() ;
+                    case 2 : return attr.size();
+                }
+                return null;
+            } catch (IOException e) {
+                e.printStackTrace();
+                return null;
+            }
+        }
+        @Override
+        public Class<?> getColumnClass(int colNum) {
+        	 switch (colNum) {
+             case 0 : return String.class;
+             case 1 : return FileTime.class;
+             case 2 : return Long.class;
+         }
+         return null;
+        }
+        @Override
+        public int getColumnCount() {
+        	 return 3;
+        }
+        public int getRowCount() {
+        	 if (data != null){
+                 return data.isDirectory()?data.listFiles().length:1;
+             }
+             return 0;
+        }
+        public String getColumnName(int colNum) {
+        	switch (colNum) {
+            case 0 : return "Name";
+            case 1 : return "Date";
+            case 2 : return "Size";
+        }
+        return null;
+        }
+    }
+}
